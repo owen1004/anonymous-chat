@@ -1,0 +1,47 @@
+{
+  "id": "checkpoint_initial_20250428_015450",
+  "timestamp": "20250428_015450",
+  "type": "initial",
+  "description": "初始專案狀態 checkpoint",
+  "files": {
+    "app": [
+      "page.tsx",
+      "layout.tsx",
+      "globals.css",
+      "profile/page.tsx",
+      "settings/page.tsx",
+      "chat-history/page.tsx",
+      "dashboard/page.tsx",
+      "login/page.tsx",
+      "signup/page.tsx",
+      "chat/page.tsx"
+    ],
+    "components": [
+      "TabBar.tsx"
+    ],
+    "lib": [
+      "firebase.ts"
+    ],
+    "config": [
+      "package.json",
+      "next.config.mjs",
+      "tailwind.config.ts",
+      "tsconfig.json"
+    ]
+  },
+  "version": "v0.7",
+  "features": [
+    "TabBar 導覽",
+    "使用者認證",
+    "聊天室功能",
+    "個人資料管理",
+    "設定頁面",
+    "MCP 系統"
+  ],
+  "dependencies": {
+    "next": "15.2.4",
+    "react": "18.2.0",
+    "firebase": "^11.6.0",
+    "framer-motion": "^12.9.2"
+  }
+} 

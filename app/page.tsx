@@ -13,6 +13,12 @@ import {
 import { checkAndUnlockAchievement, Achievement } from "@/lib/achievements"
 import AchievementNotification from "@/components/AchievementNotification"
 import AchievementSidebar from "@/components/AchievementSidebar"
+import AuthSwitcher from '@/components/ui/auth-switcher'
+import TabBar from "@/components/TabBar"
+import WarmQuotes from "@/components/WarmQuotes"
+import { useAnonymousAuth } from "@/hooks/useAnonymousAuth"
+import { useMatching } from "@/hooks/useMatching"
+import { toast } from "sonner"
 
 const encouragementQuotes = [
   "你不是沒人理，我們正在幫你找適合的人。",
@@ -68,10 +74,11 @@ const safeGetDoc = async (docRef: any) => {
   }
 }
 
-export default function Home() {
+const HomePage = () => {
+  useAnonymousAuth()
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [status, setStatus] = useState("")
   const [currentQuote, setCurrentQuote] = useState("")
   const [currentStory, setCurrentStory] = useState("")
@@ -81,92 +88,92 @@ export default function Home() {
   const [showAchievementSidebar, setShowAchievementSidebar] = useState(false)
   const [newAchievement, setNewAchievement] = useState<Achievement | null>(null)
   const [isOnline, setIsOnline] = useState(true)
+  const [showAuth, setShowAuth] = useState(false)
+  const [isOffline, setIsOffline] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { isMatching, startMatching } = useMatching()
 
   const getRandomItem = (array: string[]) => {
     const randomIndex = Math.floor(Math.random() * array.length)
     return array[randomIndex]
   }
 
+  // 初始化鼓勵語句輪播
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null
 
-    if (isLoading) {
-      // 初始化第一則語錄
+    // 無論是否在配對中，都顯示鼓勵語句
+    setCurrentQuote(getRandomItem(encouragementQuotes))
+    interval = setInterval(() => {
       setCurrentQuote(getRandomItem(encouragementQuotes))
-
-      // 設置 12 秒輪播
-      interval = setInterval(() => {
-        setCurrentQuote(getRandomItem(encouragementQuotes))
-      }, 12000)
-    }
+    }, 12000)
 
     return () => {
       if (interval) {
         clearInterval(interval)
       }
     }
-  }, [isLoading])
+  }, [])
 
+  // 初始化故事開場語和隱藏語錄
   useEffect(() => {
     let storyTimeout: NodeJS.Timeout | null = null
     let rewardTimeout: NodeJS.Timeout | null = null
     let waitingTimer: NodeJS.Timeout | null = null
     let achievementCheckInterval: NodeJS.Timeout | null = null
 
-    if (isLoading) {
-      // 初始化其他狀態
-      setCurrentStory("")
-      setCurrentReward("")
-      setWaitingTime(0)
+    // 無論是否在配對中，都設置計時器
+    setCurrentStory("")
+    setCurrentReward("")
+    setWaitingTime(0)
 
-      // 設置故事開場語句（30秒後顯示）
-      storyTimeout = setTimeout(() => {
-        setCurrentStory(getRandomItem(storyPrompts))
-      }, 30000)
+    // 設置故事開場語句（30秒後顯示）
+    storyTimeout = setTimeout(() => {
+      setCurrentStory(getRandomItem(storyPrompts))
+    }, 30000)
 
-      // 設置彩蛋語句（60秒後顯示）
-      rewardTimeout = setTimeout(() => {
-        setCurrentReward(getRandomItem(rewardMessages))
-      }, 60000)
+    // 設置彩蛋語句（60秒後顯示）
+    rewardTimeout = setTimeout(() => {
+      setCurrentReward(getRandomItem(rewardMessages))
+    }, 60000)
 
-      // 更新等待時間
-      waitingTimer = setInterval(() => {
-        setWaitingTime(prev => prev + 1)
-      }, 1000)
+    // 更新等待時間
+    waitingTimer = setInterval(() => {
+      setWaitingTime(prev => prev + 1)
+    }, 1000)
 
-      // 檢查成就
-      achievementCheckInterval = setInterval(async () => {
-        if (user) {
-          // 檢查沉默勇者成就
-          const result = await checkAndUnlockAchievement(
-            user.uid,
-            "silent_warrior",
-            waitingTime
-          )
+    // 檢查成就
+    achievementCheckInterval = setInterval(async () => {
+      if (user) {
+        // 檢查沉默勇者成就
+        const result = await checkAndUnlockAchievement(
+          user.uid,
+          "silent_warrior",
+          waitingTime
+        )
 
-          if (result.unlocked && result.badge) {
-            setNewAchievement({
-              ...result.badge,
-              unlockedAt: new Date()
-            })
-          }
-
-          // 檢查月光旅人成就
-          const nightOwlResult = await checkAndUnlockAchievement(
-            user.uid,
-            "night_owl",
-            0
-          )
-
-          if (nightOwlResult.unlocked && nightOwlResult.badge) {
-            setNewAchievement({
-              ...nightOwlResult.badge,
-              unlockedAt: new Date()
-            })
-          }
+        if (result.unlocked && result.badge) {
+          setNewAchievement({
+            ...result.badge,
+            unlockedAt: new Date()
+          })
         }
-      }, 1000)
-    }
+
+        // 檢查月光旅人成就
+        const nightOwlResult = await checkAndUnlockAchievement(
+          user.uid,
+          "night_owl",
+          0
+        )
+
+        if (nightOwlResult.unlocked && nightOwlResult.badge) {
+          setNewAchievement({
+            ...nightOwlResult.badge,
+            unlockedAt: new Date()
+          })
+        }
+      }
+    }, 1000)
 
     return () => {
       if (storyTimeout) clearTimeout(storyTimeout)
@@ -174,7 +181,7 @@ export default function Home() {
       if (waitingTimer) clearInterval(waitingTimer)
       if (achievementCheckInterval) clearInterval(achievementCheckInterval)
     }
-  }, [isLoading, user, waitingTime])
+  }, [user, waitingTime])
 
   // 更新在線人數
   useEffect(() => {
@@ -209,14 +216,35 @@ export default function Home() {
     }
   }, [])
 
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => {
+      setUser(currentUser)
+      setIsLoading(false)
+    })
+
+    // 監聽網路狀態
+    const handleOnline = () => setIsOffline(false)
+    const handleOffline = () => setIsOffline(true)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      unsubscribe()
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
   const handleStartChat = async () => {
     try {
       if (!isOnline) {
-        setStatus("目前網路未連線，請稍後再試")
+        toast.error("目前網路未連線，請稍後再試")
         return
       }
 
-      setIsLoading(true)
+      setIsMatching(true)
+      setError(null)
       setStatus("正在進行匿名登入...")
       
       const userCredential = await signInAnonymously(auth)
@@ -258,115 +286,93 @@ export default function Home() {
         await deleteDoc(doc(db, "queueWaiting", other.uid))
 
         setStatus("已找到聊天夥伴！")
-        setIsLoading(false)
+        setIsMatching(false)
         
         // 導向聊天室頁面
         router.push(`/chat/${chatRef.id}`)
       } else {
         setStatus("正在尋找聊天對象中，請稍候...")
         // 如果沒有找到配對，保持等待狀態
-        setIsLoading(true)
       }
 
     } catch (error: unknown) {
       console.error("配對過程發生錯誤:", error)
+      setIsMatching(false)
       if (error instanceof Error) {
-        setStatus(error.message)
+        toast.error(error.message)
       } else {
-        setStatus("發生未知錯誤，請稍後再試")
+        toast.error("發生未知錯誤，請稍後再試")
       }
-      setIsLoading(false)
     }
   }
 
-  return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-pink-50">
-      <div className="text-center space-y-8 p-8 max-w-2xl">
-        {!isOnline && (
-          <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-100 text-red-600 px-4 py-2 rounded-lg shadow-md">
-            目前網路未連線，請檢查您的網路設定
-          </div>
-        )}
-        <div className="absolute top-4 left-4">
-          <p className="text-sm text-gray-500 font-light italic">
-            目前有 {onlineUsers} 位匿名用戶正在等待配對中
-          </p>
-        </div>
-        <button
-          onClick={() => setShowAchievementSidebar(true)}
-          className="absolute top-4 right-4 p-2 rounded-full bg-white/80 hover:bg-white transition-colors shadow-sm"
-        >
-          🎖️
-        </button>
-        <h1 className="text-5xl font-serif font-light text-gray-800 tracking-wide">
-          匿名悄悄話聊天室
-        </h1>
-        <p className="text-xl text-gray-600 font-light italic">
-          無需登入，無需壓力，只要一點勇氣，就能開啟一段對話。
-        </p>
-        <div className="flex flex-col items-center space-y-8">
-          <button
-            onClick={handleStartChat}
-            disabled={isLoading}
-            className={`px-8 py-3 bg-gradient-to-r from-orange-400 to-pink-400 text-white rounded-full 
-                     hover:from-orange-500 hover:to-pink-500 transform hover:scale-105 transition-all duration-300
-                     shadow-lg hover:shadow-xl font-medium tracking-wide flex items-center justify-center gap-2
-                     ${isLoading ? "opacity-75 cursor-not-allowed" : ""}`}
-          >
-            {isLoading ? (
-              <div className="flex items-center gap-2">
-                <span>配對中</span>
-                <div className="flex gap-1">
-                  <div className="w-2 h-2 rounded-full bg-gradient-to-br from-orange-200 to-pink-200 animate-bounce [animation-delay:-0.3s]"></div>
-                  <div className="w-2 h-2 rounded-full bg-gradient-to-br from-orange-200 to-pink-200 animate-bounce [animation-delay:-0.15s]"></div>
-                  <div className="w-2 h-2 rounded-full bg-gradient-to-br from-orange-200 to-pink-200 animate-bounce"></div>
-                </div>
-              </div>
-            ) : (
-              "Start Chatting"
-            )}
-          </button>
-          {isLoading && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-600 animate-pulse">
-                正在尋找適合你的聊天旅伴... ✨
-              </p>
-              {currentQuote && (
-                <p className="text-sm text-gray-500 italic mt-4 animate-fade-in">
-                  {currentQuote}
-                </p>
-              )}
-              {currentStory && (
-                <p className="text-sm text-gray-600 font-light tracking-wide mt-4 animate-fade-in max-w-md mx-auto">
-                  {currentStory}
-                </p>
-              )}
-              {currentReward && (
-                <div className="mt-4 animate-bounce">
-                  <p className="text-base font-medium text-orange-500 bg-white/80 rounded-full px-4 py-2 shadow-md">
-                    {currentReward}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {newAchievement && (
-        <AchievementNotification
-          achievement={newAchievement}
-          onClose={() => setNewAchievement(null)}
-        />
-      )}
-
-      {user && (
-        <AchievementSidebar
-          userId={user.uid}
-          isOpen={showAchievementSidebar}
-          onClose={() => setShowAchievementSidebar(false)}
-        />
-      )}
-    </main>
+  // 錯誤提示元件
+  const ErrorMessage = ({ message }: { message: string }) => (
+    <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-red-100 text-red-600 px-4 py-2 rounded-lg shadow-md max-w-md text-center">
+      {message}
+    </div>
   )
+
+  // 載入中元件
+  const LoadingSpinner = () => (
+    <div className="flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+    </div>
+  )
+
+  // 離線提示元件
+  const OfflineMessage = () => (
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="text-center space-y-4">
+        <p className="text-lg text-gray-600">喔喔，好像失去連線了～</p>
+        <p className="text-gray-500">請重新整理試試🌈</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-6 py-2 bg-gradient-to-r from-orange-400 to-pink-500 text-white rounded-full hover:opacity-90 transition-opacity"
+        >
+          重新整理
+        </button>
+      </div>
+    </div>
+  )
+
+  // 主要內容元件
+  const MainContent = () => (
+    <div className="flex flex-col items-center justify-center min-h-screen p-4">
+      <h1 className="text-4xl font-bold text-center mb-4">
+        匿名聊天室
+      </h1>
+      <p className="text-xl text-gray-600 dark:text-gray-300 text-center mb-8">
+        在這裡，你可以安全地分享你的故事
+      </p>
+      <WarmQuotes />
+      <button
+        onClick={startMatching}
+        disabled={isMatching || !isOnline}
+        className={`mt-6 px-8 py-3 rounded-full text-lg font-medium transition-all duration-300 transform hover:scale-105 ${
+          isMatching || !isOnline
+            ? "bg-gray-300 cursor-not-allowed"
+            : "bg-gradient-to-r from-pink-400 to-pink-500 hover:from-pink-500 hover:to-pink-600 text-white shadow-lg hover:shadow-xl"
+        }`}
+      >
+        {isMatching ? "配對中..." : "開始聊天"}
+      </button>
+    </div>
+  )
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner />
+      </div>
+    )
+  }
+
+  if (isOffline) {
+    return <OfflineMessage />
+  }
+
+  return <MainContent />
 }
+
+export default HomePage

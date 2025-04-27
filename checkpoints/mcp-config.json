@@ -1,0 +1,27 @@
+{
+  "version": "1.0.0",
+  "checkpointRules": {
+    "maxCheckpoints": 30,
+    "autoSaveTriggers": [
+      "pageModification",
+      "componentModification",
+      "dataFlowModification",
+      "featureModification"
+    ],
+    "protectedVersions": [
+      "v1.0-alpha"
+    ]
+  },
+  "namingConvention": {
+    "format": "checkpoint_{name}_{timestamp}",
+    "timestampFormat": "YYYYMMDD_HHmmss"
+  },
+  "storage": {
+    "basePath": "/checkpoints",
+    "metadataFile": "checkpoint-metadata.json"
+  },
+  "restore": {
+    "enableUndoRestore": true,
+    "maxUndoHistory": 5
+  }
+} 

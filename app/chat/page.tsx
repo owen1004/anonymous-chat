@@ -1,79 +1,108 @@
 "use client"
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { auth } from '@/lib/firebase';
-import { User } from 'firebase/auth';
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/lib/auth-context"
+import MessageArea from "@/components/message-area"
+import MessageInput from "@/components/message-input"
+import LeaveChatButton from "@/components/leave-chat-button"
+import LoadingAnimation from "@/components/loading-animation"
+import { db } from "@/lib/firebase"
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore"
+
+type Message = {
+  id: string
+  text: string
+  sender: "me" | "other"
+  timestamp: Date
+}
 
 export default function ChatPage() {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [messages, setMessages] = useState<string[]>([]);
-  const [newMessage, setNewMessage] = useState('');
+  const router = useRouter()
+  const { user, loading } = useAuth()
+  const [newMessage, setNewMessage] = useState("")
+  const [messages, setMessages] = useState<Message[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [chatId, setChatId] = useState<string | null>(null)
 
   useEffect(() => {
-    // 檢查使用者是否已登入
-    const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (!user) {
-        router.push('/');
-      } else {
-        setUser(user);
-      }
-    });
-
-    return () => unsubscribe();
-  }, [router]);
-
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newMessage.trim()) {
-      setMessages([...messages, newMessage]);
-      setNewMessage('');
+    if (!loading && !user) {
+      router.push("/login")
+      return
     }
-  };
 
-  if (!user) {
+    // 這裡可以加入配對邏輯
+    // 暫時使用固定的 chatId 作為示例
+    const tempChatId = "temp-chat-123"
+    setChatId(tempChatId)
+
+    // 監聽訊息
+    const messagesRef = collection(db, "chats", tempChatId, "messages")
+    const q = query(messagesRef, orderBy("timestamp", "asc"))
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const newMessages = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        text: doc.data().text,
+        sender: doc.data().userId === user?.uid ? ("me" as const) : ("other" as const),
+        timestamp: doc.data().timestamp?.toDate() || new Date(),
+      }))
+      setMessages(newMessages)
+      setIsLoading(false)
+    })
+
+    return () => unsubscribe()
+  }, [user, loading, router])
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !chatId || !user) return
+
+    try {
+      const messagesRef = collection(db, "chats", chatId, "messages")
+      await addDoc(messagesRef, {
+        text: newMessage,
+        userId: user.uid,
+        timestamp: serverTimestamp(),
+      })
+      setNewMessage("")
+    } catch (error) {
+      console.error("Error sending message:", error)
+      alert("發送訊息失敗，請稍後再試")
+    }
+  }
+
+  const handleLeaveChat = () => {
+    if (confirm("確定要離開聊天室嗎？")) {
+      router.push("/")
+    }
+  }
+
+  if (loading || isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-pink-50">
-        <div className="text-center">
-          <p className="text-xl text-gray-600">載入中...</p>
-        </div>
+      <div className="flex items-center justify-center h-screen">
+        <LoadingAnimation />
       </div>
-    );
+    )
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-br from-orange-50 to-pink-50">
-      <div className="flex-1 p-4 overflow-y-auto">
-        <div className="max-w-2xl mx-auto space-y-4">
-          {messages.map((message, index) => (
-            <div
-              key={index}
-              className="bg-white p-4 rounded-lg shadow-md max-w-[80%] ml-auto"
-            >
-              <p className="text-gray-800">{message}</p>
-            </div>
-          ))}
-        </div>
+    <div className="flex flex-col h-screen bg-white">
+      <header className="p-4 border-b border-gray-200">
+        <h1 className="text-lg font-medium text-center">匿名聊天室</h1>
+      </header>
+
+      {/* 訊息區域 */}
+      <div className="flex-1 overflow-y-auto">
+        <MessageArea messages={messages} />
+        <LeaveChatButton handleLeaveChat={handleLeaveChat} />
       </div>
-      <form onSubmit={handleSendMessage} className="p-4 bg-white border-t">
-        <div className="max-w-2xl mx-auto flex gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="輸入訊息..."
-            className="flex-1 p-2 border rounded-full focus:outline-none focus:ring-2 focus:ring-orange-400"
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-gradient-to-r from-orange-400 to-pink-400 text-white rounded-full
-                     hover:from-orange-500 hover:to-pink-500 transition-all duration-300"
-          >
-            傳送
-          </button>
-        </div>
-      </form>
+
+      {/* 訊息輸入區域 */}
+      <MessageInput
+        newMessage={newMessage}
+        setNewMessage={setNewMessage}
+        handleSendMessage={handleSendMessage}
+      />
     </div>
-  );
+  )
 }

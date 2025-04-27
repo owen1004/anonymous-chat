@@ -1,0 +1,28 @@
+{
+  "checkpoints": [
+    {
+      "id": "checkpoint_initial_20250428_015450",
+      "timestamp": "20250428_015450",
+      "type": "initial",
+      "description": "初始專案狀態 checkpoint",
+      "version": "v0.7",
+      "protected": true
+    },
+    {
+      "id": "checkpoint_chat_integration_20250428_024717",
+      "timestamp": "20250428_024717",
+      "type": "feature",
+      "description": "整合聊天室功能",
+      "version": "v0.8",
+      "protected": false
+    }
+  ],
+  "lastCheckpointId": "checkpoint_chat_integration_20250428_024717",
+  "undoHistory": [],
+  "protectedVersions": ["checkpoint_initial_20250428_015450"],
+  "statistics": {
+    "totalCheckpoints": 2,
+    "lastBackup": "20250428_024717",
+    "lastRestore": null
+  }
+} 
