@@ -1,9 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import { useChat } from "@/hooks/useChat"
 import { useTyping } from "@/hooks/useTyping"
 import { useNickname } from "@/hooks/useNickname"
 import { motion } from "framer-motion"
@@ -14,8 +13,7 @@ import { zhTW } from "date-fns/locale"
 export default function ChatPage() {
   const router = useRouter()
   const { user } = useAuth()
-  const { messages, sendMessage, leaveChat } = useChat()
-  const { isTyping, startTyping, stopTyping } = useTyping()
+  const { otherUserTyping, startTyping, stopTyping } = useTyping("temp-chat-123", user?.uid || null)
   const { nickname } = useNickname()
   const [message, setMessage] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -24,7 +22,7 @@ export default function ChatPage() {
   // 自動滾動到最新訊息
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+  }, [])
 
   // 自動調整輸入框高度
   useEffect(() => {
@@ -36,7 +34,6 @@ export default function ChatPage() {
 
   const handleSendMessage = () => {
     if (message.trim()) {
-      sendMessage(message)
       setMessage("")
       stopTyping()
     }
@@ -59,29 +56,7 @@ export default function ChatPage() {
       {/* 聊天區域 */}
       <div className="flex-1 overflow-y-auto p-4 pb-24">
         <div className="max-w-3xl mx-auto space-y-3">
-          {messages.map((msg, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
-              className={`flex ${msg.senderId === user.uid ? "justify-end" : "justify-start"}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2 shadow-sm ${
-                  msg.senderId === user.uid
-                    ? "bg-[#FFE4E4] text-[#7A7363]"
-                    : "bg-white text-[#7A7363]"
-                }`}
-              >
-                <p className="text-base break-words">{msg.text}</p>
-                <p className="text-xs text-gray-400 text-right mt-1">
-                  {format(new Date(msg.timestamp), "HH:mm", { locale: zhTW })}
-                </p>
-              </div>
-            </motion.div>
-          ))}
-          {isTyping && (
+          {otherUserTyping && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -128,14 +103,14 @@ export default function ChatPage() {
         </div>
       </div>
 
-      {/* 離開聊天按鈕 */}
+      {/* 返回首頁按鈕 */}
       <motion.button
-        onClick={leaveChat}
-        className={`${theme.styles.button.common} fixed top-4 right-4`}
+        onClick={() => router.push("/")}
+        className={`${theme.styles.button.common} fixed top-4 right-4 px-8 py-3 text-lg`}
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
       >
-        離開聊天
+        返回首頁
       </motion.button>
     </div>
   )

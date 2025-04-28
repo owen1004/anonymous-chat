@@ -7,10 +7,9 @@ import { useMatching } from "@/hooks/useMatching"
 import { useOnlineUsers } from "@/hooks/useOnlineUsers"
 import { useNickname } from "@/hooks/useNickname"
 import { motion, AnimatePresence } from "framer-motion"
-import { Menu } from "lucide-react"
+import { Menu, X } from "lucide-react"
 import { theme } from "@/styles/theme"
 import { encouragementQuotes } from "@/data/encouragementQuotes"
-import { Drawer } from "@/components/ui/drawer"
 
 export default function HomePage() {
   const router = useRouter()
@@ -109,6 +108,11 @@ export default function HomePage() {
     }, 1500)
   }
 
+  const handleNavigation = (path: string) => {
+    setIsDrawerOpen(false)
+    router.push(path)
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-[#F8EFE3]">
@@ -168,8 +172,61 @@ export default function HomePage() {
         </motion.div>
       </main>
 
-      {/* Drawer 組件 */}
-      <Drawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
+      {/* Drawer */}
+      <AnimatePresence>
+        {isDrawerOpen && (
+          <>
+            {/* 遮罩層 */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black z-10"
+              onClick={() => setIsDrawerOpen(false)}
+            />
+            
+            {/* Drawer 內容 */}
+            <motion.div
+              initial={{ x: -300 }}
+              animate={{ x: 0 }}
+              exit={{ x: -300 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed top-0 left-0 w-72 h-screen bg-white z-20 shadow-lg"
+            >
+              <div className="p-4 border-b border-[#E6DCD3] flex justify-between items-center">
+                <h2 className="text-lg font-medium text-[#7A7363]">選單</h2>
+                <button
+                  onClick={() => setIsDrawerOpen(false)}
+                  className="p-2 rounded-full hover:bg-[#E6DCD3]/50 transition-colors"
+                >
+                  <X className="w-5 h-5 text-[#7A7363]" />
+                </button>
+              </div>
+              
+              <nav className="p-4">
+                <ul className="space-y-2">
+                  <li>
+                    <button
+                      onClick={() => handleNavigation("/about")}
+                      className="w-full p-3 text-left rounded-lg hover:bg-[#E6DCD3]/50 transition-colors text-[#7A7363]"
+                    >
+                      關於我們
+                    </button>
+                  </li>
+                  <li>
+                    <button
+                      onClick={() => handleNavigation("/contact")}
+                      className="w-full p-3 text-left rounded-lg hover:bg-[#E6DCD3]/50 transition-colors text-[#7A7363]"
+                    >
+                      聯絡我們
+                    </button>
+                  </li>
+                </ul>
+              </nav>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {isTimeout && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
