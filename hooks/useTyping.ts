@@ -1,79 +1,76 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
+import { useAuth } from "@/lib/auth-context"
 import { db } from "@/lib/firebase"
 import { doc, updateDoc, onSnapshot } from "firebase/firestore"
 
-export function useTyping(chatId: string | null, userId: string | null) {
+export function useTyping(chatId: string) {
+  const { user } = useAuth()
   const [isTyping, setIsTyping] = useState(false)
   const [otherUserTyping, setOtherUserTyping] = useState(false)
-  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // 更新自己的打字狀態
-  const updateTypingStatus = useCallback(
-    (typing: boolean) => {
-      if (!chatId || !userId) return
+  // 更新打字狀態
+  const updateTypingStatus = useCallback(async (typing: boolean) => {
+    if (!user || !chatId) return
 
-      const typingRef = doc(db, "chats", chatId)
-      updateDoc(typingRef, {
-        [`typing.${userId}`]: typing,
+    try {
+      const chatRef = doc(db, "chats", chatId)
+      await updateDoc(chatRef, {
+        [`typing.${user.uid}`]: typing
       })
-    },
-    [chatId, userId]
-  )
+    } catch (error) {
+      console.error("更新打字狀態失敗:", error)
+    }
+  }, [user, chatId])
 
-  // 監聽對方的打字狀態
+  // 監聽其他用戶的打字狀態
   useEffect(() => {
-    if (!chatId || !userId) return
+    if (!chatId) return
 
-    const typingRef = doc(db, "chats", chatId)
-    const unsubscribe = onSnapshot(typingRef, (doc) => {
+    const chatRef = doc(db, "chats", chatId)
+    const unsubscribe = onSnapshot(chatRef, (doc) => {
       const data = doc.data()
-      if (!data?.typing) return
+      if (!data || !data.typing) return
 
-      // 檢查是否有其他用戶在打字
-      const otherUsersTyping = Object.entries(data.typing).some(
-        ([uid, isTyping]) => uid !== userId && isTyping
-      )
+      const otherUsersTyping = Object.entries(data.typing)
+        .filter(([uid]) => uid !== user?.uid)
+        .some(([_, isTyping]) => isTyping)
+
       setOtherUserTyping(otherUsersTyping)
     })
 
     return () => unsubscribe()
-  }, [chatId, userId])
+  }, [chatId, user?.uid])
 
   // 處理打字超時
   useEffect(() => {
     if (isTyping) {
-      if (typingTimeout) clearTimeout(typingTimeout)
-      const timeout = setTimeout(() => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
+      typingTimeoutRef.current = setTimeout(() => {
         updateTypingStatus(false)
         setIsTyping(false)
       }, 5000)
-      setTypingTimeout(timeout)
     }
 
     return () => {
-      if (typingTimeout) clearTimeout(typingTimeout)
-    }
-  }, [isTyping, typingTimeout, updateTypingStatus])
-
-  // 開始打字
-  const startTyping = useCallback(() => {
-    if (!isTyping) {
-      setIsTyping(true)
-      updateTypingStatus(true)
-    }
-  }, [isTyping, updateTypingStatus])
-
-  // 停止打字
-  const stopTyping = useCallback(() => {
-    if (isTyping) {
-      setIsTyping(false)
-      updateTypingStatus(false)
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current)
+      }
     }
   }, [isTyping, updateTypingStatus])
 
   return {
+    isTyping,
     otherUserTyping,
-    startTyping,
-    stopTyping,
+    startTyping: () => {
+      setIsTyping(true)
+      updateTypingStatus(true)
+    },
+    stopTyping: () => {
+      setIsTyping(false)
+      updateTypingStatus(false)
+    }
   }
 } 

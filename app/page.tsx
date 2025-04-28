@@ -7,9 +7,11 @@ import { useMatching } from "@/hooks/useMatching"
 import { useOnlineUsers } from "@/hooks/useOnlineUsers"
 import { useNickname } from "@/hooks/useNickname"
 import { motion, AnimatePresence } from "framer-motion"
-import { Menu, X } from "lucide-react"
+import { Menu, X, LogIn, UserPlus } from "lucide-react"
 import { theme } from "@/styles/theme"
 import { encouragementQuotes } from "@/data/encouragementQuotes"
+import { auth } from "@/lib/firebase"
+import { signInAnonymously } from "firebase/auth"
 
 export default function HomePage() {
   const router = useRouter()
@@ -46,20 +48,16 @@ export default function HomePage() {
     const currentLength = displayText.length
 
     if (!isDeleting && currentLength < currentQuote.length) {
-      // 打字階段
       setDisplayText(currentQuote.substring(0, currentLength + 1))
     } else if (!isDeleting && currentLength === currentQuote.length) {
-      // 完成打字，等待6秒後開始刪除
       setIsTyping(false)
       timerRef.current = setTimeout(() => {
         setIsDeleting(true)
         setIsTyping(true)
       }, 6000)
     } else if (isDeleting && currentLength > 0) {
-      // 刪除階段
       setDisplayText(currentQuote.substring(0, currentLength - 1))
     } else if (isDeleting && currentLength === 0) {
-      // 完成刪除，切換到下一句
       setIsDeleting(false)
       setCurrentQuoteIndex((prevIndex) => (prevIndex + 1) % encouragementQuotes.length)
     }
@@ -84,12 +82,20 @@ export default function HomePage() {
     }
   }, [isDrawerOpen])
 
+  // 匿名登入
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/login")
+      signInAnonymously(auth)
+        .then(() => {
+          console.log("匿名登入成功")
+        })
+        .catch((error: Error) => {
+          console.error("匿名登入失敗:", error)
+        })
     }
-  }, [user, loading, router])
+  }, [user, loading])
 
+  // 處理超時
   useEffect(() => {
     if (isTimeout) {
       const timer = setTimeout(() => {
@@ -199,30 +205,48 @@ export default function HomePage() {
                   onClick={() => setIsDrawerOpen(false)}
                   className="p-2 rounded-full hover:bg-[#E6DCD3]/50 transition-colors"
                 >
-                  <X className="w-5 h-5 text-[#7A7363]" />
+                  <X className="w-6 h-6 text-[#7A7363]" />
                 </button>
               </div>
-              
-              <nav className="p-4">
-                <ul className="space-y-2">
-                  <li>
+
+              <div className="p-4 space-y-4">
+                <button
+                  onClick={() => handleNavigation("/")}
+                  className="w-full p-3 text-left rounded-lg hover:bg-[#E6DCD3]/50 transition-colors text-[#7A7363]"
+                >
+                  首頁
+                </button>
+                <button
+                  onClick={() => handleNavigation("/about")}
+                  className="w-full p-3 text-left rounded-lg hover:bg-[#E6DCD3]/50 transition-colors text-[#7A7363]"
+                >
+                  關於我們
+                </button>
+                <button
+                  onClick={() => handleNavigation("/contact")}
+                  className="w-full p-3 text-left rounded-lg hover:bg-[#E6DCD3]/50 transition-colors text-[#7A7363]"
+                >
+                  聯絡我們
+                </button>
+                {!user?.isAnonymous && (
+                  <>
                     <button
-                      onClick={() => handleNavigation("/about")}
-                      className="w-full p-3 text-left rounded-lg hover:bg-[#E6DCD3]/50 transition-colors text-[#7A7363]"
+                      onClick={() => handleNavigation("/login")}
+                      className="w-full p-3 text-left rounded-lg hover:bg-[#E6DCD3]/50 transition-colors text-[#7A7363] flex items-center"
                     >
-                      關於我們
+                      <LogIn className="w-5 h-5 mr-2" />
+                      登入
                     </button>
-                  </li>
-                  <li>
                     <button
-                      onClick={() => handleNavigation("/contact")}
-                      className="w-full p-3 text-left rounded-lg hover:bg-[#E6DCD3]/50 transition-colors text-[#7A7363]"
+                      onClick={() => handleNavigation("/signup")}
+                      className="w-full p-3 text-left rounded-lg hover:bg-[#E6DCD3]/50 transition-colors text-[#7A7363] flex items-center"
                     >
-                      聯絡我們
+                      <UserPlus className="w-5 h-5 mr-2" />
+                      註冊
                     </button>
-                  </li>
-                </ul>
-              </nav>
+                  </>
+                )}
+              </div>
             </motion.div>
           </>
         )}
