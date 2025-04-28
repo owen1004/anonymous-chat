@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check-sync": "bash scripts/check-sync.sh",
+    "mcp": "git tag -a mcp-$(date +%Y%m%d-%H%M%S) -m 'MCP Checkpoint' && git push origin --tags"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
