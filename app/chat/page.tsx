@@ -19,6 +19,13 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
+  // 用戶驗證
+  useEffect(() => {
+    if (!user) {
+      router.push("/login")
+    }
+  }, [user, router])
+
   // 自動滾動到最新訊息
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -47,7 +54,6 @@ export default function ChatPage() {
   }
 
   if (!user) {
-    router.push("/login")
     return null
   }
 
