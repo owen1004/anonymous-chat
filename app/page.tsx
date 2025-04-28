@@ -1,142 +1,185 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { auth, signInAnonymously, db } from "@/lib/firebase"
-import { User } from "firebase/auth"
-import { Loader2 } from "lucide-react"
-import {
-  setDoc, getDocs, deleteDoc, doc,
-  query, collection, where, orderBy, limit,
-  addDoc, serverTimestamp, getDoc
-} from "firebase/firestore"
-import { checkAndUnlockAchievement, Achievement } from "@/lib/achievements"
-import AchievementNotification from "@/components/AchievementNotification"
-import AchievementSidebar from "@/components/AchievementSidebar"
-import AuthSwitcher from '@/components/ui/auth-switcher'
-import TabBar from "@/components/TabBar"
-import WarmQuotes from "@/components/WarmQuotes"
-import { useAnonymousAuth } from "@/hooks/useAnonymousAuth"
+import { useAuth } from "@/lib/auth-context"
 import { useMatching } from "@/hooks/useMatching"
-import { toast } from "sonner"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import StoryPrompt from "@/components/story-prompt"
-import RewardNotification from "@/components/reward-notification"
+import { useOnlineUsers } from "@/hooks/useOnlineUsers"
+import { useNickname } from "@/hooks/useNickname"
+import { motion, AnimatePresence } from "framer-motion"
+import { Menu } from "lucide-react"
+import { theme } from "@/styles/theme"
 import { encouragementQuotes } from "@/data/encouragementQuotes"
-import { motion } from "framer-motion"
+import { Drawer } from "@/components/ui/drawer"
 
-const storyPrompts = [
-  "在一個深夜的城市角落，一個人打開了這個聊天室……",
-  "也許這一刻，有人正等待一個無壓力的開場白。",
-  "按下開始的那瞬間，你已經接近一段故事的開始。",
-  "有人想說：嗨，也許今天會有一個人理解我。"
-]
-
-const rewardMessages = [
-  "🎖️ 你獲得了『沉默勇者』徽章！",
-  "你的耐心讓你與眾不同 ✨",
-  "孤獨不是退場，而是等待適合的入場。"
-]
-
-// 安全的 Firestore 文件讀取函式
-const safeGetDoc = async (docRef: any) => {
-  try {
-    // 檢查 Firebase 是否已初始化
-    if (!db) {
-      throw new Error("Firebase 尚未初始化完成")
-    }
-
-    // 檢查網路狀態
-    if (!navigator.onLine) {
-      throw new Error("目前未連上網路，請稍候再試")
-    }
-
-    const docSnap = await getDoc(docRef)
-    
-    if (!docSnap.exists()) {
-      throw new Error("找不到指定的文件")
-    }
-
-    return docSnap
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes("offline")) {
-        throw new Error("目前未連上網路，請稍候再試")
-      } else if (error.message.includes("Firebase 尚未初始化")) {
-        throw new Error("系統正在初始化中，請稍候再試")
-      } else if (error.message.includes("找不到指定的文件")) {
-        throw new Error("找不到指定的資料")
-      }
-    }
-    throw new Error("讀取資料時發生錯誤，請稍候再試")
-  }
-}
-
-const LoadingDots = () => {
-  return (
-    <motion.span className="inline-flex items-center">
-      {[0, 1, 2].map((index) => (
-        <motion.span
-          key={index}
-          className="ml-1 inline-block w-1 h-1 bg-white rounded-full"
-          animate={{
-            opacity: [0.2, 1, 0.2],
-            scale: [0.8, 1.2, 0.8],
-          }}
-          transition={{
-            duration: 1,
-            repeat: Infinity,
-            delay: index * 0.2,
-          }}
-        />
-      ))}
-    </motion.span>
-  )
-}
-
-const HomePage = () => {
+export default function HomePage() {
   const router = useRouter()
-  const { isMatching, startMatching } = useMatching()
-  const [currentQuoteIndex, setCurrentQuoteIndex] = useState(0)
+  const { user, loading } = useAuth()
+  const { startMatching, isMatching, isTimeout, resetTimeout } = useMatching()
+  const { onlineUserCount } = useOnlineUsers()
+  const { nickname } = useNickname()
+  const [isAnimating, setIsAnimating] = useState(false)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [currentQuoteIndex, setCurrentQuoteIndex] = useState(
+    Math.floor(Math.random() * encouragementQuotes.length)
+  )
+  const [displayText, setDisplayText] = useState("")
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isTyping, setIsTyping] = useState(true)
+  const timerRef = useRef<NodeJS.Timeout | null>(null)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentQuoteIndex((prevIndex) => (prevIndex + 1) % encouragementQuotes.length)
-    }, 12000) // 每12秒切換一次小語
-    return () => clearInterval(interval)
+  // 清理計時器
+  const clearTimers = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current)
+      intervalRef.current = null
+    }
   }, [])
 
+  // 打字機效果
+  const typeWriter = useCallback(() => {
+    const currentQuote = encouragementQuotes[currentQuoteIndex]
+    const currentLength = displayText.length
+
+    if (!isDeleting && currentLength < currentQuote.length) {
+      // 打字階段
+      setDisplayText(currentQuote.substring(0, currentLength + 1))
+    } else if (!isDeleting && currentLength === currentQuote.length) {
+      // 完成打字，等待6秒後開始刪除
+      setIsTyping(false)
+      timerRef.current = setTimeout(() => {
+        setIsDeleting(true)
+        setIsTyping(true)
+      }, 6000)
+    } else if (isDeleting && currentLength > 0) {
+      // 刪除階段
+      setDisplayText(currentQuote.substring(0, currentLength - 1))
+    } else if (isDeleting && currentLength === 0) {
+      // 完成刪除，切換到下一句
+      setIsDeleting(false)
+      setCurrentQuoteIndex((prevIndex) => (prevIndex + 1) % encouragementQuotes.length)
+    }
+  }, [currentQuoteIndex, displayText, isDeleting])
+
+  // 控制打字速度
+  useEffect(() => {
+    clearTimers()
+    intervalRef.current = setInterval(typeWriter, isDeleting ? 75 : 150)
+    return clearTimers
+  }, [typeWriter, isDeleting, clearTimers])
+
+  // 防止背景滾動
+  useEffect(() => {
+    if (isDrawerOpen) {
+      document.body.style.overflow = "hidden"
+    } else {
+      document.body.style.overflow = "unset"
+    }
+    return () => {
+      document.body.style.overflow = "unset"
+    }
+  }, [isDrawerOpen])
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login")
+    }
+  }, [user, loading, router])
+
+  useEffect(() => {
+    if (isTimeout) {
+      const timer = setTimeout(() => {
+        resetTimeout()
+        router.push("/")
+      }, 3000)
+      return () => clearTimeout(timer)
+    }
+  }, [isTimeout, router, resetTimeout])
+
+  const handleStartChat = () => {
+    setIsAnimating(true)
+    startMatching()
+    setTimeout(() => {
+      router.push("/chat")
+    }, 1500)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-[#F8EFE3]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#D4AFAF]"></div>
+      </div>
+    )
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-amber-50 to-white px-4 py-8 text-center">
-      <h1 className="text-4xl font-bold mb-4 text-gray-800">匿名聊天室</h1>
-      <p className="text-lg text-gray-600 mb-2">
-        尋找你的心靈旅伴 ✨
-      </p>
-      <p className="text-md text-gray-500 italic mb-8 transition-opacity duration-500 ease-in-out">
-        {encouragementQuotes[currentQuoteIndex]}
-      </p>
-      <motion.button
-        onClick={startMatching}
-        disabled={isMatching}
-        className="rounded-full bg-gradient-to-r from-pink-400 to-pink-500 text-white text-lg font-medium px-8 py-4 shadow-lg hover:shadow-xl active:shadow-inner transition-all duration-300 disabled:opacity-70 disabled:cursor-not-allowed"
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
-      >
-        {isMatching ? (
-          <span className="flex items-center">
-            配對中
-            <LoadingDots />
-          </span>
-        ) : (
-          "開始聊天"
-        )}
-      </motion.button>
-    </main>
+    <div className="min-h-screen bg-[#F8EFE3] flex flex-col">
+      <header className="p-4 border-b border-[#E6DCD3] flex justify-between items-center">
+        <button
+          onClick={() => setIsDrawerOpen(true)}
+          className="p-2 rounded-full hover:bg-[#E6DCD3]/50 transition-colors"
+        >
+          <Menu className="w-6 h-6 text-[#7A7363]" />
+        </button>
+        <h1 className="text-2xl font-medium text-[#7A7363]">匿名聊天室</h1>
+        <div className="w-10" /> {/* 平衡標題置中 */}
+      </header>
+
+      <main className="flex-1 flex flex-col items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="text-center space-y-6"
+        >
+          <h2 className="text-xl text-[#7A7363]">歡迎，{nickname}</h2>
+          <p className="text-[#9CA3AF]">目前有 {onlineUserCount} 位旅人在線上</p>
+
+          {/* 打字機效果 */}
+          <div className="h-16 flex items-center justify-center">
+            <p className="text-base text-[#9CA3AF] max-w-md">
+              {displayText}
+              <span className={`inline-block w-0.5 h-5 bg-[#9CA3AF] ml-1 ${isTyping ? "animate-pulse" : ""}`} />
+            </p>
+          </div>
+
+          {isMatching ? (
+            <div className="flex items-center justify-center space-x-2">
+              <div className="w-2 h-2 rounded-full bg-[#D4AFAF] animate-bounce" />
+              <div className="w-2 h-2 rounded-full bg-[#D4AFAF] animate-bounce delay-100" />
+              <div className="w-2 h-2 rounded-full bg-[#D4AFAF] animate-bounce delay-200" />
+            </div>
+          ) : (
+            <motion.button
+              onClick={handleStartChat}
+              disabled={isAnimating}
+              className={`${theme.styles.button.common} px-8 py-3 text-lg`}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              開始聊天
+            </motion.button>
+          )}
+        </motion.div>
+      </main>
+
+      {/* Drawer 組件 */}
+      <Drawer isOpen={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
+
+      {isTimeout && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-[#F8EFE3] p-6 rounded-xl shadow-lg text-center">
+            <p className="text-[#7A7363] text-lg mb-4">
+              目前暫時沒有旅伴在線上，請稍後再試 ✨
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
-
-export default HomePage

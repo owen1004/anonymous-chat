@@ -1,118 +1,123 @@
 "use client"
 
-import * as React from "react"
-import { Drawer as DrawerPrimitive } from "vaul"
+import { X } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
+import { theme } from "@/styles/theme"
 
-import { cn } from "@/lib/utils"
+interface DrawerProps {
+  isOpen: boolean
+  onClose: () => void
+}
 
-const Drawer = ({
-  shouldScaleBackground = true,
-  ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Root>) => (
-  <DrawerPrimitive.Root
-    shouldScaleBackground={shouldScaleBackground}
-    {...props}
-  />
-)
-Drawer.displayName = "Drawer"
+const menuItems = [
+  { icon: "🏠", label: "首頁", path: "/" },
+  { icon: "❓", label: "關於", path: "/about" },
+  { icon: "✉️", label: "聯絡我們", path: "/contact" }
+]
 
-const DrawerTrigger = DrawerPrimitive.Trigger
+// 動畫設定
+const drawerVariants = {
+  hidden: {
+    x: "-100%",
+    opacity: 0,
+  },
+  visible: {
+    x: 0,
+    opacity: 1,
+    transition: {
+      type: "spring",
+      stiffness: 300,
+      damping: 30,
+      duration: 0.5,
+    },
+  },
+  exit: {
+    x: "-100%",
+    opacity: 0,
+    transition: {
+      type: "spring",
+      stiffness: 300,
+      damping: 30,
+      duration: 0.5,
+    },
+  },
+}
 
-const DrawerPortal = DrawerPrimitive.Portal
+const overlayVariants = {
+  hidden: {
+    opacity: 0,
+  },
+  visible: {
+    opacity: 1,
+    transition: {
+      duration: 0.3,
+    },
+  },
+  exit: {
+    opacity: 0,
+    transition: {
+      duration: 0.3,
+    },
+  },
+}
 
-const DrawerClose = DrawerPrimitive.Close
+export function Drawer({ isOpen, onClose }: DrawerProps) {
+  const router = useRouter()
 
-const DrawerOverlay = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
->(({ className, ...props }, ref) => (
-  <DrawerPrimitive.Overlay
-    ref={ref}
-    className={cn("fixed inset-0 z-50 bg-black/80", className)}
-    {...props}
-  />
-))
-DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName
+  const handleItemClick = (path: string) => {
+    router.push(path)
+    onClose()
+  }
 
-const DrawerContent = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-  <DrawerPortal>
-    <DrawerOverlay />
-    <DrawerPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed inset-x-0 bottom-0 z-50 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
-        className
+  return (
+    <AnimatePresence mode="wait">
+      {isOpen && (
+        <>
+          {/* 背景遮罩 */}
+          <motion.div
+            variants={overlayVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="fixed inset-0 bg-black/20 z-40"
+            onClick={onClose}
+          />
+          
+          {/* Drawer 本體 */}
+          <motion.div
+            variants={drawerVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="fixed left-0 top-0 h-full w-[280px] bg-[#F8EFE3] shadow-xl z-50"
+          >
+            {/* 關閉按鈕 */}
+            <button
+              onClick={onClose}
+              className="absolute right-4 top-4 p-2 rounded-full hover:bg-[#E6DCD3]/50 transition-colors"
+            >
+              <X className="w-5 h-5 text-[#7A7363]" />
+            </button>
+
+            {/* 選單內容 */}
+            <div className="flex flex-col h-full justify-center px-6 gap-6">
+              {menuItems.map((item) => (
+                <motion.button
+                  key={item.path}
+                  onClick={() => handleItemClick(item.path)}
+                  className="flex items-center gap-3 px-4 py-3 rounded-lg text-[#7A7363] hover:bg-[#E6DCD3]/50 transition-colors text-lg font-medium"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  <span className="text-xl">{item.icon}</span>
+                  {item.label}
+                </motion.button>
+              ))}
+            </div>
+          </motion.div>
+        </>
       )}
-      {...props}
-    >
-      <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-      {children}
-    </DrawerPrimitive.Content>
-  </DrawerPortal>
-))
-DrawerContent.displayName = "DrawerContent"
-
-const DrawerHeader = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn("grid gap-1.5 p-4 text-center sm:text-left", className)}
-    {...props}
-  />
-)
-DrawerHeader.displayName = "DrawerHeader"
-
-const DrawerFooter = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn("mt-auto flex flex-col gap-2 p-4", className)}
-    {...props}
-  />
-)
-DrawerFooter.displayName = "DrawerFooter"
-
-const DrawerTitle = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Title>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Title>
->(({ className, ...props }, ref) => (
-  <DrawerPrimitive.Title
-    ref={ref}
-    className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
-      className
-    )}
-    {...props}
-  />
-))
-DrawerTitle.displayName = DrawerPrimitive.Title.displayName
-
-const DrawerDescription = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Description>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Description>
->(({ className, ...props }, ref) => (
-  <DrawerPrimitive.Description
-    ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
-    {...props}
-  />
-))
-DrawerDescription.displayName = DrawerPrimitive.Description.displayName
-
-export {
-  Drawer,
-  DrawerPortal,
-  DrawerOverlay,
-  DrawerTrigger,
-  DrawerClose,
-  DrawerContent,
-  DrawerHeader,
-  DrawerFooter,
-  DrawerTitle,
-  DrawerDescription,
+    </AnimatePresence>
+  )
 }
